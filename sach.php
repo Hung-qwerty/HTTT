@@ -1,6 +1,6 @@
 <?php
 include 'db.php';
-
+session_start(); if (!isset($_SESSION['admin_logged'])) { header("Location: login.php"); exit; }
 // Xử lý thêm sách
 if (isset($_POST['them_sach'])) {
     $ma = $_POST['ma_sach'];
