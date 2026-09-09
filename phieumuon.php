@@ -3,25 +3,23 @@ session_start();
 include 'db.php';
 if (!isset($_SESSION['admin_logged'])) { header("Location: login.php"); exit; }
 
-// 1. Tự động cập nhật trạng thái "Quá hạn" nếu ngày hẹn trả nhỏ hơn ngày hiện tại
 $conn->exec("UPDATE phieumuon SET trang_thai = 'Quá hạn' WHERE trang_thai = 'Đang mượn' AND ngay_hen_tra < CURDATE()");
 
-// 2. Xử lý Duyệt phiếu mượn (SV vừa gửi)
 if (isset($_GET['duyet'])) {
     $maphieu = $_GET['duyet'];
     $ngayhentra = date('Y-m-d', strtotime('+7 days'));
     $conn->prepare("UPDATE phieumuon SET trang_thai = 'Đang mượn', ngay_hen_tra = ? WHERE ma_phieu = ?")->execute([$ngayhentra, $maphieu]);
     header("Location: phieumuon.php");
+    exit();
 }
 
-// 3. Xử lý Thu hồi sách (Xác nhận SV đã trả sách)
 if (isset($_GET['trasach'])) {
     $maphieu = $_GET['trasach'];
     $conn->prepare("UPDATE phieumuon SET trang_thai = 'Đã trả' WHERE ma_phieu = ?")->execute([$maphieu]);
     header("Location: phieumuon.php");
+    exit();
 }
 
-// Lấy danh sách phiếu
 $phieumuons = $conn->query("
     SELECT p.ma_phieu, b.ten_sv, b.ma_sv, p.ngay_tao, p.ngay_hen_tra, p.trang_thai, s.ten_sach 
     FROM phieumuon p 
@@ -42,18 +40,16 @@ $phieumuons = $conn->query("
     <div class="card shadow-sm p-3 bg-white">
         <table class="table table-hover align-middle">
             <thead class="table-dark">
-                <tr><th>Mã YC</th><th>Độc giả</th><th>Sách đang mượn</th><th>Ngày gửi Y/C</th><th>Hạn trả</th><th>Trạng thái</th><th>Thao tác</th></tr>
+                <tr><th>Mã YC</th><th>Độc giả</th><th>Sách đang mượn</th><th>Ngày gửi</th><th>Hạn trả</th><th>Trạng thái</th><th>Thao tác</th></tr>
             </thead>
             <tbody>
                 <?php foreach ($phieumuons as $pm) { ?>
                     <tr>
-                        <td class="fw-bold text-secondary"><?= $pm['ma_phieu'] ?></td>
-                        <td><span class="fw-bold"><?= $pm['ten_sv'] ?></span><br><small class="text-muted"><?= $pm['ma_sv'] ?></small></td>
-                        <td class="text-primary fw-bold"><?= $pm['ten_sach'] ?></td>
+                        <td class="fw-bold"><?= $pm['ma_phieu'] ?></td>
+                        <td><?= $pm['ten_sv'] ?><br><small class="text-muted"><?= $pm['ma_sv'] ?></small></td>
+                        <td class="text-primary"><?= $pm['ten_sach'] ?></td>
                         <td><?= $pm['ngay_tao'] ?></td>
-                        <td class="fw-bold <?= ($pm['trang_thai'] == 'Quá hạn') ? 'text-danger' : 'text-success' ?>">
-                            <?= $pm['ngay_hen_tra'] ? $pm['ngay_hen_tra'] : '--/--/----' ?>
-                        </td>
+                        <td class="fw-bold <?= ($pm['trang_thai'] == 'Quá hạn') ? 'text-danger' : 'text-success' ?>"><?= $pm['ngay_hen_tra'] ?? '--/--/----' ?></td>
                         <td>
                             <?php 
                                 if ($pm['trang_thai'] == 'Chờ duyệt') echo '<span class="badge bg-warning text-dark">Chờ duyệt</span>';
@@ -64,9 +60,11 @@ $phieumuons = $conn->query("
                         </td>
                         <td>
                             <?php if ($pm['trang_thai'] == 'Chờ duyệt') { ?>
-                                <a href="phieumuon.php?duyet=<?= $pm['ma_phieu'] ?>" class="btn btn-success btn-sm fw-bold">Duyệt mượn</a>
-                            <?php } elseif ($pm['trang_thai'] == 'Đang mượn' || $pm['trang_thai'] == 'Quá hạn') { ?>
+                                <a href="phieumuon.php?duyet=<?= $pm['ma_phieu'] ?>" class="btn btn-success btn-sm">Duyệt mượn</a>
+                            <?php } elseif ($pm['trang_thai'] == 'Đang mượn') { ?>
                                 <a href="phieumuon.php?trasach=<?= $pm['ma_phieu'] ?>" class="btn btn-outline-danger btn-sm">Thu hồi sách</a>
+                            <?php } elseif ($pm['trang_thai'] == 'Quá hạn') { ?>
+                                <a href="lap_phat.php?ma_phieu=<?= $pm['ma_phieu'] ?>&ma_sv=<?= $pm['ma_sv'] ?>" class="btn btn-danger btn-sm fw-bold">Lập phạt & Trả</a>
                             <?php } else { ?>
                                 <button class="btn btn-light btn-sm" disabled>Hoàn tất</button>
                             <?php } ?>
