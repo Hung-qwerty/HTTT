@@ -10,6 +10,8 @@ try {
     die("Lỗi kết nối CSDL: " . $e->getMessage());
 }
 
+$tukhoa = isset($_GET['tu_khoa']) ? trim($_GET['tu_khoa']) : '';
+
 // Xử lý thêm sinh viên mới
 if (isset($_POST['them_sv'])) {
     $ma_sv = trim($_POST['ma_sv']);
@@ -17,16 +19,26 @@ if (isset($_POST['them_sv'])) {
     $lop = trim($_POST['lop']);
 
     if (!empty($ma_sv) && !empty($ten_sv) && !empty($lop)) {
-        // Đã đổi SINH_VIEN thành bandoc
-        $stmt = $pdo->prepare("INSERT INTO bandoc (ma_sv, ten_sv, lop) VALUES (?, ?, ?)");
-        $stmt->execute([$ma_sv, $ten_sv, $lop]);
-        header("Location: bandoc.php");
-        exit();
+        try {
+            $stmt = $pdo->prepare("INSERT INTO bandoc (ma_sv, ten_sv, lop) VALUES (?, ?, ?)");
+            $stmt->execute([$ma_sv, $ten_sv, $lop]);
+            header("Location: bandoc.php");
+            exit();
+        } catch (PDOException $e) {
+            $error = "Mã sinh viên đã tồn tại!";
+        }
     }
 }
 
-// Đã đổi SINH_VIEN thành bandoc
-$sinhvien = $pdo->query("SELECT * FROM bandoc")->fetchAll(PDO::FETCH_ASSOC);
+// Lấy danh sách (Hỗ trợ tìm kiếm)
+if ($tukhoa != '') {
+    $stmt = $pdo->prepare("SELECT * FROM bandoc WHERE ma_sv LIKE ? OR ten_sv LIKE ? OR lop LIKE ?");
+    $like = "%$tukhoa%";
+    $stmt->execute([$like, $like, $like]);
+    $sinhvien = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} else {
+    $sinhvien = $pdo->query("SELECT * FROM bandoc")->fetchAll(PDO::FETCH_ASSOC);
+}
 ?>
 <!DOCTYPE html>
 <html lang="vi">
@@ -38,13 +50,25 @@ $sinhvien = $pdo->query("SELECT * FROM bandoc")->fetchAll(PDO::FETCH_ASSOC);
 <body class="bg-light">
     <div class="container py-4">
         <div class="d-flex justify-content-between align-items-center mb-4">
-            <h2>Quản lý Danh mục Bạn đọc (Sinh viên)</h2>
-            <a href="admin.php" class="btn btn-secondary">← Quay lại Menu Admin</a>
+            <h2 class="text-primary fw-bold">Quản lý Danh mục Bạn đọc (Sinh viên)</h2>
+            <a href="admin.php" class="btn btn-secondary">← Quay lại Admin</a>
         </div>
+
+        <?php if (isset($error)) { echo "<div class='alert alert-danger'>$error</div>"; } ?>
         
+        <!-- Thanh tìm kiếm bạn đọc -->
+        <form method="GET" class="input-group mb-4 shadow-sm">
+            <input type="text" name="tu_khoa" class="form-control" placeholder="🔍 Tìm kiếm theo mã sinh viên, họ tên, lớp..." value="<?= htmlspecialchars($tukhoa) ?>">
+            <button class="btn btn-primary" type="submit">Tìm kiếm</button>
+            <?php if($tukhoa != '') { ?>
+                <a href="bandoc.php" class="btn btn-outline-secondary">Làm mới</a>
+            <?php } ?>
+        </form>
+        
+        <!-- Form thêm sinh viên -->
         <div class="card mb-4 shadow-sm">
             <div class="card-body">
-                <h5 class="card-title mb-3">Thêm bạn đọc mới</h5>
+                <h5 class="card-title mb-3 text-success">➕ Thêm bạn đọc mới</h5>
                 <form method="POST" class="row g-3">
                     <div class="col-md-3">
                         <input type="text" name="ma_sv" class="form-control" placeholder="Mã SV (VD: SV01)" required>
@@ -56,16 +80,16 @@ $sinhvien = $pdo->query("SELECT * FROM bandoc")->fetchAll(PDO::FETCH_ASSOC);
                         <input type="text" name="lop" class="form-control" placeholder="Lớp (VD: 30INF048)" required>
                     </div>
                     <div class="col-md-2">
-                        <button type="submit" name="them_sv" class="btn btn-success w-100">Thêm mới</button>
+                        <button type="submit" name="them_sv" class="btn btn-success w-100 fw-bold">Thêm mới</button>
                     </div>
                 </form>
             </div>
         </div>
 
+        <!-- Bảng hiển thị danh sách -->
         <div class="card shadow-sm">
-            <div class="card-body">
-                <h5 class="card-title mb-3">Danh sách sinh viên thư viện</h5>
-                <table class="table table-bordered table-striped align-middle">
+            <div class="card-body p-0">
+                <table class="table table-bordered table-striped table-hover align-middle mb-0">
                     <thead class="table-dark">
                         <tr>
                             <th>Mã Sinh Viên</th>
@@ -77,13 +101,13 @@ $sinhvien = $pdo->query("SELECT * FROM bandoc")->fetchAll(PDO::FETCH_ASSOC);
                         <?php if (count($sinhvien) > 0): ?>
                             <?php foreach ($sinhvien as $sv): ?>
                             <tr>
-                                <td><?= htmlspecialchars($sv['ma_sv']) ?></td>
-                                <td><?= htmlspecialchars($sv['ten_sv']) ?></td>
+                                <td class="fw-bold"><?= htmlspecialchars($sv['ma_sv']) ?></td>
+                                <td class="text-primary fw-semibold"><?= htmlspecialchars($sv['ten_sv']) ?></td>
                                 <td><?= htmlspecialchars($sv['lop']) ?></td>
                             </tr>
                             <?php endforeach; ?>
                         <?php else: ?>
-                            <tr><td colspan="3" class="text-center text-muted">Chưa có dữ liệu sinh viên nào.</td></tr>
+                            <tr><td colspan="3" class="text-center text-muted py-3">Không tìm thấy bạn đọc nào phù hợp.</td></tr>
                         <?php endif; ?>
                     </tbody>
                 </table>
